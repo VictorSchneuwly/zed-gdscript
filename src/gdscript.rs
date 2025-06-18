@@ -1,5 +1,12 @@
+use std::net::Ipv4Addr;
+
 use zed::LanguageServerId;
-use zed_extension_api::{self as zed, Result};
+use zed_extension_api::{
+    self as zed,
+    serde_json::{json, Value},
+    DebugAdapterBinary, DebugTaskDefinition, Result, StartDebuggingRequestArguments,
+    StartDebuggingRequestArgumentsRequest, TcpArguments, Worktree,
+};
 
 struct GDScriptExtension;
 
@@ -23,7 +30,7 @@ impl zed::Extension for GDScriptExtension {
         let path = nc_command
             .ok_or_else(|| "nc or ncat must be installed and available on your PATH".to_string())?;
 
-        let lsp_settings = zed::settings::LspSettings::for_worktree("gdscript", &worktree);
+        let lsp_settings = zed::settings::LspSettings::for_worktree("gdscript", worktree);
         let mut args = None;
 
         if let Ok(lsp_settings) = lsp_settings {
@@ -37,6 +44,54 @@ impl zed::Extension for GDScriptExtension {
             args: args.unwrap_or(vec!["127.0.0.1".to_string(), "6005".to_string()]),
             env: Default::default(),
         })
+    }
+
+    // --- Debug Extension ---
+
+    fn get_dap_binary(
+        &mut self,
+        _adapter_name: String,
+        // TODO: look into also using this (user could for examle use a custom port)
+        config: DebugTaskDefinition,
+        _user_provided_debug_adapter_path: Option<String>,
+        worktree: &Worktree,
+    ) -> Result<DebugAdapterBinary, String> {
+        let godot_configuration = json!({
+            "type": "godot",
+            "request": "launch",
+            "name": "Launch scene",
+            "project": worktree.root_path(),
+            "launch_scene": true,
+        });
+
+        Ok(DebugAdapterBinary {
+            command: None,
+            arguments: vec![],
+            envs: Default::default(),
+            cwd: None,
+
+            // Godot only uses TCP for debugging
+            connection: Some(TcpArguments {
+                // TODO: api uses `u32` for host but official implementations are using `Ipv4Addr`
+                // So we need to keep an eye on this
+                host: Ipv4Addr::new(127, 0, 0, 1).to_bits(),
+                port: 6006,
+                timeout: None,
+            }),
+
+            request_args: StartDebuggingRequestArguments {
+                configuration: godot_configuration.to_string(),
+                request: StartDebuggingRequestArgumentsRequest::Attach,
+            },
+        })
+    }
+
+    fn dap_request_kind(
+        &mut self,
+        _adapter_name: String,
+        _config: Value,
+    ) -> Result<StartDebuggingRequestArgumentsRequest, String> {
+        Ok(StartDebuggingRequestArgumentsRequest::Attach) // TODO: test if attach or launch
     }
 }
 
