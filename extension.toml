@@ -22,3 +22,6 @@ commit = "1f1e782fe2600f50ae57b53876505b8282388d77"
 [grammars.godot_resource]
 repository = "https://github.com/PrestonKnopp/tree-sitter-godot-resource"
 commit = "2ffb90de47417018651fc3b970e5f6b67214dc9d"
+
+[debug-adapters.godot]
+schema_path = "debug_adapter_schemas/godot.json"
